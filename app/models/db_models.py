@@ -48,11 +48,13 @@ class Image(SQLModel, table=True):
     
 class Order(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    buyer_id: int = Field(foreign_key="user.id")
+    buyer_id: int = Field(foreign_key="users.id")
     total_amount: float
     status: str = "PENDING"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     payment_ref: Optional[str] = None 
+    
+    items: List["Order_Items"] = Relationship(back_populates="order")
     
 class Order_Items(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -60,8 +62,10 @@ class Order_Items(SQLModel, table=True):
     product_id: int = Field(foreign_key="products.id")
     quantity: int = Field(ge=1)
     price: float
+    
+    order: Optional["Order"] = Relationship(back_populates="items")
 
-class Payment(SQLModel, table= True):
+class Payments(SQLModel, table= True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(foreign_key="order.id")
     provider: str

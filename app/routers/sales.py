@@ -16,6 +16,7 @@ def list_most_sales_now(session: Session = Depends(get_session)):
     
     #calc the time 12 hours ago
     twelve_hours_ago = datetime.utcnow() - timedelta(hours=12)
+    print("HACE DOCE HORAS",twelve_hours_ago)
     
     statement =  (
         select(

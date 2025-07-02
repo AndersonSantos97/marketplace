@@ -22,7 +22,19 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
         expires_delta=access_token_expires
     )
     
-    return {"access_token": access_token, "token_type":"bearer"}
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "bio": user.bio,
+            "avatar_url": user.avatar_url,
+            "created_at": user.created_at
+        }
+    }
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, session: Session = Depends(get_session)):

@@ -32,6 +32,19 @@ async def create_payment(
     current_user: Users = Depends(get_current_user)
     ):
     try:
+        
+        # Verificar stock
+        for item in payload.items:
+            product = db.exec(select(Products).where(Products.id == item.product_id)).first()
+            if not product:
+                raise HTTPException(status_code=404, detail=f"Producto {item.product_id} no encontrado.")
+            if product.stock <= 0:
+                raise HTTPException(status_code=400, detail=f"El producto '{product.title}' está agotado.")
+            if item.quantity > product.stock:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cantidad solicitada de '{product.title}' excede el stock disponible ({product.stock})."
+                )
         order_data = await create_order(payload.amount)
         paypal_order_id = order_data["id"]
         

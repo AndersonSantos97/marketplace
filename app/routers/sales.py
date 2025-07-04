@@ -25,6 +25,7 @@ def list_most_sales_now(session: Session = Depends(get_session)):
             Products.title,
             Products.description,
             Products.price,
+            Products.stock,
             func.sum(Order_Items.quantity).label("total_sold")
         )
         .join(Order_Items, Products.id == Order_Items.product_id)
@@ -34,7 +35,8 @@ def list_most_sales_now(session: Session = Depends(get_session)):
             Products.artist_id, 
             Products.title, 
             Products.description, 
-            Products.price)
+            Products.price,
+            Products.stock)
         .order_by(desc("total_sold"))
         .limit(4)
     )
@@ -63,6 +65,7 @@ def list_most_sales_now(session: Session = Depends(get_session)):
             "title": row.title,
             "description": row.description,
             "price": row.price,
+            "stock": row.stock,
             "image_url": images_dict.get(row.id),
             "total_sold": row.total_sold
         }

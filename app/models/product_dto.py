@@ -1,6 +1,7 @@
 from typing import Optional, List
 from sqlmodel import SQLModel, Field
 from datetime import datetime
+from pydantic import BaseModel
 
 class ProductBase(SQLModel):
     title: str
@@ -56,3 +57,29 @@ class ProductsPaginatedResponse(SQLModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+    
+class ProductStatusUpdateRequest(BaseModel):
+    product_id: int
+
+class ProductStatusUpdateResponse(BaseModel):
+    success: bool
+    message: str
+    product_id: int
+    new_status_id: int
+    
+class ProductImageResponse(BaseModel):
+    id: int
+    image_url: str
+
+class InactiveProductResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    price: float
+    is_digital: bool
+    file_url: Optional[str]
+    stock: int
+    created_at: datetime
+    category_id: int
+    status_id: int
+    image_url: Optional[str]

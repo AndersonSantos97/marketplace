@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlmodel import Session, select
-from ..models.product_dto import ProductCreate, ProductRead, ProductUpdate, ProductsPaginatedResponse, ProductWithImage
-from ..models.db_models import Products, Users, Image, Category
+from ..models.product_dto import ProductCreate, ProductRead, ProductUpdate, ProductsPaginatedResponse, ProductWithImage, InactiveProductResponse, ProductImageResponse, ProductStatusUpdateRequest, ProductStatusUpdateResponse
+from ..models.db_models import Products, Users, Image, Category, ProductStatus
 from ..db.database import create_engine, get_session
 from app.auth.dependencies import require_role
 from sqlalchemy import func
 from typing import List, Optional
 from math import ceil
+from app.auth.auth import get_current_user
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -206,6 +207,7 @@ def get_products_by_categories(
                 order_by=Products.created_at.desc()
             ).label("rn")
         )
+        .where(Products.status_id != 3)
         .subquery()
     )
     
@@ -338,3 +340,266 @@ def get_products_by_category(
         has_next=has_next,
         has_prev=has_prev
     )
+    
+# Endpoint para obtener productos inactivos del vendedor
+@router.get("/seller/inactive/{seller_id}", response_model=List[InactiveProductResponse])
+async def get_inactive_products(
+    seller_id: int,
+    status_id: int = 3,
+    session: Session = Depends(get_session)
+):
+    """
+    Obtiene todos los productos inactivos (status_id = 3) del vendedor especificado.
+    Incluye las imágenes de cada producto.
+    """
+    
+    try:
+        
+        # Query para obtener productos inactivos del vendedor especificado
+        statement = (
+            select(Products)
+            .where(Products.artist_id == seller_id)
+            .where(Products.status_id == status_id)
+        )
+        
+        products = session.exec(statement).all()
+        
+        if not products:
+            return []
+        
+        # Preparar respuesta con imágenes
+        response_products = []
+        
+        for product in products:
+            # Obtener imágenes del producto
+            images_statement = select(Image).where(Image.product_id == product.id).limit(1)
+            first_image = session.exec(images_statement).first()
+            
+            # Obtener URL de la primera imagen, si existe
+            image_url = first_image.image_url if first_image else None
+            # Crear response del producto
+            product_response = InactiveProductResponse(
+                id=product.id,
+                title=product.title,
+                description=product.description,
+                price=product.price,
+                is_digital=product.is_digital,
+                file_url=product.file_url,
+                stock=product.stock,
+                created_at=product.created_at,
+                category_id=product.category_id,
+                status_id=product.status_id,
+                image_url=image_url
+            )
+            
+            response_products.append(product_response)
+        
+        return response_products
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener productos inactivos: {str(e)}"
+        )
+        
+# Endpoint para actualizar estado de producto (activar/desactivar)
+@router.patch("/active/{product_id}", response_model=ProductStatusUpdateResponse)
+async def activate_product(
+    product_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Activa un producto (cambia status_id a 1).
+    """
+    try:
+        # Verificar que el producto existe
+        product = session.get(Products, product_id)
+        
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Producto no encontrado"
+            )
+        
+        # Verificar que el producto no esté ya activo
+        if product.status_id == 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El producto ya está activo"
+            )
+        
+        # Verificar que el status_id 1 existe en la base de datos
+        status_statement = select(ProductStatus).where(ProductStatus.id == 1)
+        product_status = session.exec(status_statement).first()
+        
+        if not product_status:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Estado de producto activo no encontrado en el sistema"
+            )
+        
+        # Actualizar el estado del producto a activo
+        product.status_id = 1
+        session.add(product)
+        session.commit()
+        session.refresh(product)
+        
+        return ProductStatusUpdateResponse(
+            success=True,
+            message="Producto activado exitosamente",
+            product_id=product.id,
+            new_status_id=1
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al activar producto: {str(e)}"
+        )
+
+
+# async def update_product_status(
+#     product_id: int,
+#     request: ProductStatusUpdateRequest,
+#     session: Session = Depends(get_session)
+# ):
+#     """
+#     Actualiza el estado de un producto.
+#     Solo el propietario del producto puede modificar su estado.
+#     """
+#     try:
+#         # Verificar que el producto existe
+#         product = session.get(Products, product_id)
+        
+#         if not product:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail="Producto no encontrado"
+#             )
+        
+#         # Validar que el status_id es válido (1 = activo, 3 = inactivo)
+#         if request.status_id not in [1, 3]:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Estado de producto inválido. Use 1 para activo o 3 para inactivo"
+#             )
+        
+#         # Verificar que el estado ya no es el mismo
+#         if product.status_id == request.status_id:
+#             status_name = "activo" if request.status_id == 1 else "inactivo"
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"El producto ya está {status_name}"
+#             )
+        
+#         # Verificar que el status_id existe en la base de datos
+#         status_statement = select(ProductStatus).where(ProductStatus.id == request.status_id)
+#         product_status = session.exec(status_statement).first()
+        
+#         if not product_status:
+#             raise HTTPException(
+#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                 detail="Estado de producto no encontrado en el sistema"
+#             )
+        
+#         # Actualizar el estado del producto
+#         old_status_id = product.status_id
+#         product.status_id = request.status_id
+#         session.add(product)
+#         session.commit()
+#         session.refresh(product)
+        
+#         # Determinar mensaje según el cambio
+#         if request.status_id == 1:
+#             message = "Producto activado exitosamente"
+#         else:
+#             message = "Producto desactivado exitosamente"
+        
+#         return ProductStatusUpdateResponse(
+#             success=True,
+#             message=message,
+#             product_id=product.id,
+#             new_status_id=request.status_id
+#         )
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         session.rollback()
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Error al actualizar estado del producto: {str(e)}"
+#         )
+
+# Endpoint adicional para obtener productos por estado (útil para el futuro)
+@router.get("/products/seller/{seller_id}/status/{status_id}", response_model=List[InactiveProductResponse])
+async def get_products_by_status(
+    seller_id: int,
+    status_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Obtiene productos de un vendedor filtrados por estado.
+    Útil para obtener productos activos (status_id=1) o inactivos (status_id=3).
+    """
+    try:
+        # Query para obtener productos del vendedor por estado
+        statement = (
+            select(Products)
+            .where(Products.artist_id == seller_id)
+            .where(Products.status_id == status_id)
+        )
+        
+        products = session.exec(statement).all()
+        
+        if not products:
+            return []
+        
+        # Preparar respuesta con imágenes
+        response_products = []
+        
+        for product in products:
+            # Obtener imágenes del producto
+            images_statement = select(Image).where(Image.product_id == product.id)
+            images = session.exec(images_statement).all()
+            
+            # Convertir imágenes a response model
+            product_images = [
+                ProductImageResponse(
+                    id=image.id,
+                    image_url=image.image_url
+                )
+                for image in images
+            ]
+            
+            # Crear response del producto
+            product_response = InactiveProductResponse(
+                id=product.id,
+                title=product.title,
+                description=product.description,
+                price=product.price,
+                is_digital=product.is_digital,
+                file_url=product.file_url,
+                stock=product.stock,
+                created_at=product.created_at,
+                category_id=product.category_id,
+                status_id=product.status_id,
+                images=product_images
+            )
+            
+            response_products.append(product_response)
+        
+        return response_products
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener productos por estado: {str(e)}"
+        )

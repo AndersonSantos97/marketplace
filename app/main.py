@@ -15,6 +15,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.get("/")
+def root():
+    return {"message": "Hello from FastAPI on Railway! By Anderson"}
 
 app.include_router(auth.router)
 app.include_router(users.router)

@@ -6,8 +6,9 @@ from pathlib import Path
 
 # Cargar variables del .env
 
-dotenv_path = Path(__file__).resolve().parent.parent /".env"
-load_dotenv(dotenv_path=dotenv_path)
+# dotenv_path = Path(__file__).resolve().parent.parent /".env"
+# load_dotenv(dotenv_path=dotenv_path)
+load_dotenv() 
 
 SQLACHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 

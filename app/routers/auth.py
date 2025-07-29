@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
+from jose import JWTError
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from app.models.db_models import Users
 from app.models.user_dto import UserCreate, UserRead
-from app.auth.auth import hash_password
+from app.auth.auth import hash_password, verify_token
 from app.db.database import get_session
-from app.auth.auth import authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.auth.auth import authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, create_refresh_token
 from datetime import timedelta
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -18,12 +19,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
         raise HTTPException(status_code=400, detail="Invalid Credentials")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id), "role":user.role},
-        expires_delta=access_token_expires
+        data={"sub": str(user.id), "role":user.role}
     )
+    refresh_token = create_refresh_token({"sub": str(user.id)})
     
     return {
         "access_token": access_token, 
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": {
             "id": user.id,
@@ -35,6 +37,20 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
             "created_at": user.created_at
         }
     }
+    
+@router.post("/refresh")
+def refresh_token(refresh_token: str = Body(...)):
+    try:
+        payload = verify_token(refresh_token)
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Refresh token inválido")
+
+        # Crear nuevo Access Token
+        new_access_token = create_access_token({"sub": str(user_id)})
+        return {"access_token": new_access_token}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Refresh token expirado")
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, session: Session = Depends(get_session)):

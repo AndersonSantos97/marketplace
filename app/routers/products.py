@@ -8,6 +8,7 @@ from sqlalchemy import func
 from typing import List, Optional
 from math import ceil
 from app.auth.auth import get_current_user
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -462,6 +463,32 @@ async def activate_product(
             detail=f"Error al activar producto: {str(e)}"
         )
 
+
+@router.get("/search/alike/", response_model=List[ProductWithImage])
+def search_products(query: str = Query(..., min_length=1), session: Session = Depends(get_session)):
+    statement = select(Products).where(Products.title.ilike(f"%{query}%")).options(selectinload(Products.images))
+    results = session.exec(statement).all()
+
+    # Transformar a lista de productos con solo una imagen
+    products_with_image = []
+    for product in results:
+        main_image_url = product.images[0].image_url if product.images else None
+        products_with_image.append(ProductWithImage(
+            id=product.id,
+            artist_id=product.artist_id,
+            title=product.title,
+            description=product.description,
+            price=product.price,
+            is_digital=product.is_digital,
+            stock=product.stock,
+            created_at=product.created_at,
+            category_id=product.category_id,
+            status_id=product.status_id,
+            file_url = product.file_url,
+            image_url=main_image_url
+        ))
+
+    return products_with_image
 
 # async def update_product_status(
 #     product_id: int,

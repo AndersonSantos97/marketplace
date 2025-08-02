@@ -1,6 +1,7 @@
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
-from datetime import datetime
+from datetime import datetime,timedelta
+from uuid import uuid4
 
 class Category(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -30,6 +31,7 @@ class Products(SQLModel, table=True):
     
     category: Optional[Category] = Relationship(back_populates="products")
     status: Optional[ProductStatus] = Relationship(back_populates="products")
+    images: List["Image"] = Relationship(back_populates="product")
     
 class Users(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -45,6 +47,8 @@ class Image(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="products.id")
     image_url: str
+    
+    product: Optional["Products"] = Relationship(back_populates="images")
     
 class Order(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -90,3 +94,10 @@ class Commission(SQLModel, table=True):
 class Roles(SQLModel, table= True):
     id: Optional[int] = Field(default=None, primary_key=True)
     description: str
+    
+class PasswordResetToken(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    user_id: int
+    token: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime = Field(default_factory=lambda: datetime.utcnow() + timedelta(hours=1))

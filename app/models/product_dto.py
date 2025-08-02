@@ -83,3 +83,4 @@ class InactiveProductResponse(BaseModel):
     category_id: int
     status_id: int
     image_url: Optional[str]
+    

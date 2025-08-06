@@ -13,8 +13,8 @@ from ..db.database import get_session
 #secret key, should be estronger in production 
 SECRET_KEY = "myultrasecretkey123"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_HOURS = 2
+ACCESS_TOKEN_EXPIRE_MINUTES = 240
+REFRESH_TOKEN_EXPIRE_HOURS = 4
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")

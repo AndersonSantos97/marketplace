@@ -54,7 +54,7 @@ def get_user(user_id: int, session: Session = Depends(get_session)):
 
 @router.get("/role/{user_role}", response_model=list[UserRead])
 def get_artist(user_role: int, session: Session = Depends(get_session)):
-    statement = select(Users).where(Users.role == user_role).order_by(func.rand()) .limit(10)
+    statement = select(Users).where(Users.role == user_role).order_by(func.rand()) .limit(6)
     #statement = select(Users).join(Roles).where(Users.role == user_role).limit(10)
     artis = session.exec(statement).all()
     if not artis:
